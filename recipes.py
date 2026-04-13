@@ -2,6 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from models import Recipe
 from flask_jwt_extended import jwt_required
 from flask import request
+from sqlalchemy import or_
 
 
 recipe_ns = Namespace("recipe", description="A namespace for Recipes")
@@ -10,6 +11,16 @@ recipe_ns = Namespace("recipe", description="A namespace for Recipes")
 recipe_model = recipe_ns.model(
     "Recipe",
     {"id": fields.Integer(), "title": fields.String(), "description": fields.String()},
+)
+
+paginated_recipe_model = recipe_ns.model(
+    "PaginatedRecipes",
+    {
+        "items": fields.List(fields.Nested(recipe_model)),
+        "total": fields.Integer(),
+        "page": fields.Integer(),
+        "pages": fields.Integer(),
+    },
 )
 
 
@@ -21,13 +32,30 @@ class HelloResource(Resource):
 
 @recipe_ns.route("/recipes")
 class RecipesResource(Resource):
-    @recipe_ns.marshal_list_with(recipe_model)
+    @recipe_ns.marshal_with(paginated_recipe_model)
     def get(self):
-        """Get all recipes"""
+        """Get all recipes with search and pagination"""
+        search = request.args.get("search", "")
+        page = request.args.get("page", 1, type=int)
+        per_page = 8
 
-        recipes = Recipe.query.all()
+        query = Recipe.query
+        if search:
+            query = query.filter(
+                or_(
+                    Recipe.title.ilike(f"%{search}%"),
+                    Recipe.description.ilike(f"%{search}%"),
+                )
+            )
 
-        return recipes
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+        return {
+            "items": pagination.items,
+            "total": pagination.total,
+            "page": pagination.page,
+            "pages": pagination.pages,
+        }
 
     @recipe_ns.marshal_with(recipe_model)
     @recipe_ns.expect(recipe_model)

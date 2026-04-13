@@ -1,13 +1,41 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth";
 import Recipe from "./Recipe";
-import { Modal, Form, Button } from "react-bootstrap";
+import { Modal, Form, Button, Pagination, Card } from "react-bootstrap";
 import { useForm } from "react-hook-form";
+
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 const LoggedinHome = () => {
   const [recipes, setRecipes] = useState([]);
   const [show, setShow] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const debouncedSearch = useDebounce(searchTerm, 400);
+
   const {
     register,
     reset,
@@ -17,22 +45,37 @@ const LoggedinHome = () => {
   } = useForm();
   const [recipeId, setRecipeId] = useState(0);
 
-  useEffect(() => {
-    fetch("/recipe/recipes")
+  const fetchRecipes = useCallback((page, search) => {
+    const params = new URLSearchParams();
+    params.append("page", page);
+    if (search) {
+      params.append("search", search);
+    }
+
+    fetch(`/recipe/recipes?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
-        setRecipes(data);
+        setRecipes(data.items);
+        setCurrentPage(data.page);
+        setTotalPages(data.pages);
+        setTotalItems(data.total);
       })
       .catch((err) => console.log(err));
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchRecipes(1, debouncedSearch);
+  }, [debouncedSearch, fetchRecipes]);
+
+  useEffect(() => {
+    if (currentPage > 1) {
+      fetchRecipes(currentPage, debouncedSearch);
+    }
+  }, [currentPage, debouncedSearch, fetchRecipes]);
+
   const getAllRecipes = () => {
-    fetch("/recipe/recipes")
-      .then((res) => res.json())
-      .then((data) => {
-        setRecipes(data);
-      })
-      .catch((err) => console.log(err));
+    fetchRecipes(currentPage, debouncedSearch);
   };
 
   const closeModal = () => {
@@ -95,6 +138,58 @@ const LoggedinHome = () => {
       .catch((err) => console.log(err));
   };
 
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    let items = [];
+    for (let number = 1; number <= totalPages; number++) {
+      items.push(
+        <Pagination.Item
+          key={number}
+          active={number === currentPage}
+          onClick={() => handlePageChange(number)}
+        >
+          {number}
+        </Pagination.Item>
+      );
+    }
+
+    return (
+      <div className="pagination-container">
+        <Pagination>
+          <Pagination.Prev
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          />
+          {items}
+          <Pagination.Next
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          />
+        </Pagination>
+      </div>
+    );
+  };
+
+  const renderEmptyState = () => {
+    if (recipes.length === 0 && totalItems === 0) {
+      return (
+        <Card className="recipe">
+          <Card.Body>
+            <Card.Title className="text-center text-muted">
+              没有找到相关食谱
+            </Card.Title>
+          </Card.Body>
+        </Card>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="recipes container">
       <Modal show={show} size="lg" onHide={closeModal}>
@@ -148,6 +243,15 @@ const LoggedinHome = () => {
         </Modal.Body>
       </Modal>
       <h1>List of Recipes</h1>
+      <Form.Group className="mb-4 search-container">
+        <Form.Control
+          type="text"
+          placeholder="搜索食谱标题或描述..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </Form.Group>
+      {renderEmptyState()}
       {recipes.map((recipe, index) => (
         <Recipe
           recipe={recipe}
@@ -160,21 +264,99 @@ const LoggedinHome = () => {
           }}
         />
       ))}
+      {renderPagination()}
     </div>
   );
 };
 
 const LoggedOutHome = () => {
   const [recipes, setRecipes] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const debouncedSearch = useDebounce(searchTerm, 400);
 
-  useEffect(() => {
-    fetch("/recipe/recipes")
+  const fetchRecipes = useCallback((page, search) => {
+    const params = new URLSearchParams();
+    params.append("page", page);
+    if (search) {
+      params.append("search", search);
+    }
+
+    fetch(`/recipe/recipes?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
-        setRecipes(data);
+        setRecipes(data.items);
+        setCurrentPage(data.page);
+        setTotalPages(data.pages);
+        setTotalItems(data.total);
       })
       .catch((err) => console.log(err));
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchRecipes(1, debouncedSearch);
+  }, [debouncedSearch, fetchRecipes]);
+
+  useEffect(() => {
+    if (currentPage > 1) {
+      fetchRecipes(currentPage, debouncedSearch);
+    }
+  }, [currentPage, debouncedSearch, fetchRecipes]);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    let items = [];
+    for (let number = 1; number <= totalPages; number++) {
+      items.push(
+        <Pagination.Item
+          key={number}
+          active={number === currentPage}
+          onClick={() => handlePageChange(number)}
+        >
+          {number}
+        </Pagination.Item>
+      );
+    }
+
+    return (
+      <div className="pagination-container">
+        <Pagination>
+          <Pagination.Prev
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+          />
+          {items}
+          <Pagination.Next
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          />
+        </Pagination>
+      </div>
+    );
+  };
+
+  const renderEmptyState = () => {
+    if (recipes.length === 0 && totalItems === 0) {
+      return (
+        <Card className="recipe">
+          <Card.Body>
+            <Card.Title className="text-center text-muted">
+              没有找到相关食谱
+            </Card.Title>
+          </Card.Body>
+        </Card>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="recipes container">
@@ -185,9 +367,19 @@ const LoggedOutHome = () => {
       <br />
       <br />
       <h2>Browse Recipes</h2>
+      <Form.Group className="mb-4 search-container">
+        <Form.Control
+          type="text"
+          placeholder="搜索食谱标题或描述..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </Form.Group>
+      {renderEmptyState()}
       {recipes.map((recipe, index) => (
         <Recipe recipe={recipe} key={index} />
       ))}
+      {renderPagination()}
     </div>
   );
 };
