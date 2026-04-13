@@ -11,8 +11,6 @@ class APITestCase(unittest.TestCase):
         self.client = self.app.test_client(self)
 
         with self.app.app_context():
-            db.init_app(self.app)
-
             db.create_all()
 
     def test_hello_world(self):
