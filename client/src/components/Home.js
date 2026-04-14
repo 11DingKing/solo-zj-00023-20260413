@@ -55,12 +55,27 @@ const LoggedinHome = () => {
     fetch(`/recipe/recipes?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
-        setRecipes(data.items);
-        setCurrentPage(data.page);
-        setTotalPages(data.pages);
-        setTotalItems(data.total);
+        if (data && Array.isArray(data.items)) {
+          setRecipes(data.items);
+          setCurrentPage(data.page || 1);
+          setTotalPages(data.pages || 0);
+          setTotalItems(data.total || 0);
+        } else if (Array.isArray(data)) {
+          setRecipes(data);
+          setCurrentPage(1);
+          setTotalPages(1);
+          setTotalItems(data.length);
+        } else {
+          setRecipes([]);
+          setCurrentPage(1);
+          setTotalPages(0);
+          setTotalItems(0);
+        }
       })
-      .catch((err) => console.log(err));
+      .catch((err) => {
+        console.log(err);
+        setRecipes([]);
+      });
   }, []);
 
   useEffect(() => {
@@ -85,12 +100,14 @@ const LoggedinHome = () => {
   const showModal = (id) => {
     setShow(true);
     setRecipeId(id);
-    recipes.map((recipe) => {
-      if (recipe.id == id) {
-        setValue("title", recipe.title);
-        setValue("description", recipe.description);
-      }
-    });
+    if (Array.isArray(recipes)) {
+      recipes.forEach((recipe) => {
+        if (recipe.id == id) {
+          setValue("title", recipe.title);
+          setValue("description", recipe.description);
+        }
+      });
+    }
   };
 
   let token = localStorage.getItem("REACT_TOKEN_AUTH_KEY");
@@ -190,6 +207,8 @@ const LoggedinHome = () => {
     return null;
   };
 
+  const recipeList = Array.isArray(recipes) ? recipes : [];
+
   return (
     <div className="recipes container">
       <Modal show={show} size="lg" onHide={closeModal}>
@@ -252,7 +271,7 @@ const LoggedinHome = () => {
         />
       </Form.Group>
       {renderEmptyState()}
-      {recipes.map((recipe, index) => (
+      {recipeList.map((recipe, index) => (
         <Recipe
           recipe={recipe}
           key={index}
@@ -287,12 +306,27 @@ const LoggedOutHome = () => {
     fetch(`/recipe/recipes?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
-        setRecipes(data.items);
-        setCurrentPage(data.page);
-        setTotalPages(data.pages);
-        setTotalItems(data.total);
+        if (data && Array.isArray(data.items)) {
+          setRecipes(data.items);
+          setCurrentPage(data.page || 1);
+          setTotalPages(data.pages || 0);
+          setTotalItems(data.total || 0);
+        } else if (Array.isArray(data)) {
+          setRecipes(data);
+          setCurrentPage(1);
+          setTotalPages(1);
+          setTotalItems(data.length);
+        } else {
+          setRecipes([]);
+          setCurrentPage(1);
+          setTotalPages(0);
+          setTotalItems(0);
+        }
       })
-      .catch((err) => console.log(err));
+      .catch((err) => {
+        console.log(err);
+        setRecipes([]);
+      });
   }, []);
 
   useEffect(() => {
@@ -358,6 +392,8 @@ const LoggedOutHome = () => {
     return null;
   };
 
+  const recipeList = Array.isArray(recipes) ? recipes : [];
+
   return (
     <div className="recipes container">
       <h1 className="heading">Welcome to the Recipes</h1>
@@ -376,7 +412,7 @@ const LoggedOutHome = () => {
         />
       </Form.Group>
       {renderEmptyState()}
-      {recipes.map((recipe, index) => (
+      {recipeList.map((recipe, index) => (
         <Recipe recipe={recipe} key={index} />
       ))}
       {renderPagination()}
